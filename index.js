@@ -4,8 +4,8 @@ const {Cluster} = require('puppeteer-cluster');
 const cacheManager = require('cache-manager');
 const memoryCache = cacheManager.caching({
     store: 'memory',
-    max: process.env.CACHE_MAXSIZE || 1000,
-    ttl: process.env.CACHE_TTL || 86400/*seconds*/
+    max: +process.env.CACHE_MAXSIZE || 1000,
+    ttl: +process.env.CACHE_TTL || 86400/*seconds*/
 });
 
 // Dont download all resources, we just need the HTML
@@ -74,7 +74,7 @@ const render = async ({page, data: url}) => {
 
         // Remove scripts and html imports. They've already executed.
         await page.evaluate(() => {
-            const scripts = document.querySelectorAll('script, link[rel="import"]');
+            const scripts = document.querySelectorAll('script:not([type="application/ld+json"]), link[rel="import"]');
             const iframes = document.querySelectorAll('iframe');
             [...scripts, ...iframes].forEach(e => e.remove());
         });
@@ -98,8 +98,14 @@ const app = express();
 (async () => {
     const cluster = await Cluster.launch({
         concurrency: Cluster.CONCURRENCY_CONTEXT,
+        puppeteerOptions: {
+            headless: true,
+            ignoreHTTPSErrors: true,
+            executablePath: process.env.CHROME_BIN || null,
+            args: ['--no-sandbox', '--headless', '--disable-gpu', '--disable-dev-shm-usage']
+        },
         monitor: process.env.MONITOR === "1" || false,
-        maxConcurrency: parseInt(process.env.MAX_CONCURRENCY) || 4,
+        maxConcurrency: +process.env.MAX_CONCURRENCY || 4,
     });
     const fetch = (url, cb) => {
         memoryCache.get(url, function (err, result) {

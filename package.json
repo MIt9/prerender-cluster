@@ -1,6 +1,6 @@
 {
   "name": "prerender-cluster",
-  "version": "1.0.0",
+  "version": "1.3.0",
   "description": "Lightweight Cluster Prerender container built on Alpine Linux with Node",
   "main": "index.js",
   "scripts": {

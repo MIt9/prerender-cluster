@@ -1,6 +1,6 @@
 # Cluster Prerender
 
-Lightweight Cluster Prerender container built on Alpine Linux with Node
+Lightweight Cluster Prerender container built on Alpine Linux with unlimited number of requests
 
 ## Requirements
 
@@ -11,8 +11,8 @@ Lightweight Cluster Prerender container built on Alpine Linux with Node
 Pull and run the image:
 
 ```
-docker pull tvanro/prerender-alpine:6.5.0
-docker run -p 3000:3000 tvanro/prerender-alpine:6.5.0
+docker pull siniidrozd/prerender-cluster:1.1.0
+docker run -p 3000:3000 siniidrozd/prerender-cluster:1.1.0
 ```
 Prerender will now be running on http://localhost:3000. Try the container out with curl:
 
@@ -27,7 +27,7 @@ You can customize cache behavior with environment variables :
 - CACHE_TTL=6000 : time to live in seconds
 
 ```
-docker run -p 3000:3000 -e CACHE_MAXSIZE=1000 -e CACHE_TTL=6000 tvanro/prerender-alpine:6.5.0 
+docker run -p 3000:3000 -e CACHE_MAXSIZE=1000 -e CACHE_TTL=6000 siniidrozd/prerender-cluster:1.1.0
 ```
 
 ## Other params
