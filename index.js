@@ -70,19 +70,18 @@ const render = async ({page, data: url}) => {
             base.href = (link || "").split("?").shift();
             // Add to top of head, before all other resources.
             document.head.prepend(base);
-        }, url);
-
-        // Remove scripts and html imports. They've already executed.
-        await page.evaluate(() => {
+            // Remove scripts and html imports. They've already executed.
             const scripts = document.querySelectorAll('script:not([type="application/ld+json"]), link[rel="import"]');
             const iframes = document.querySelectorAll('iframe');
-            [...scripts, ...iframes].forEach(e => e.remove());
-        });
+            const style = document.querySelectorAll('link[rel="stylesheet"]');
+            const preload = document.querySelectorAll('link[rel="preload"]');
+            console.log(style.length);
+            [...scripts, ...iframes, ...style, ...preload].forEach(e => e.remove());
+        }, url);
 
         const html = await page.content();
 
-        // Close the page we opened here (not the browser).
-        // await page.close();
+        await page.close();
         return {html, status: response.status()}
     } catch (e) {
         const html = e.toString();
