@@ -1,5 +1,7 @@
 const express = require('express');
 const compression = require('compression');
+const axios = require('axios');
+const dropcss = require('dropcss');
 const {Cluster} = require('puppeteer-cluster');
 const cacheManager = require('cache-manager');
 const memoryCache = cacheManager.caching({
@@ -58,7 +60,6 @@ const render = async ({page, data: url}) => {
             }
             request.continue();
         });
-
         const response = await page.goto(url, {
             timeout: process.env.REQUEST_TIMEOUT || 25000,
             waitUntil: 'networkidle2'
@@ -72,15 +73,38 @@ const render = async ({page, data: url}) => {
             document.head.prepend(base);
         }, url);
 
-        // Remove scripts and html imports. They've already executed.
-        await page.evaluate(() => {
+        const mobHTML = await page.content();
+        const styleHrefs = await page.$$eval('link[rel=stylesheet]', els => Array.from(els).map(s => s.href));
+        let css = "";
+        await Promise.all(styleHrefs.map(async href => {
+            try {
+                let {data} = await axios.get(href);
+                css += data;
+            } catch (e) {
+                console.log(href)
+                console.error(e)
+            }
+        }));
+        const all = dropcss({
+            css,
+            html: mobHTML
+        })
+
+        await page.evaluate(async (styleCss) => {
+            const style = document.querySelectorAll('link[rel="stylesheet"]');
+            // Remove scripts and html imports. They've already executed.
             const scripts = document.querySelectorAll('script:not([type="application/ld+json"]), link[rel="import"]');
             const iframes = document.querySelectorAll('iframe');
-            [...scripts, ...iframes].forEach(e => e.remove());
-        });
+            const preload = document.querySelectorAll('link[rel="preload"]');
+            [...scripts, ...iframes, ...style, ...preload].forEach(e => e.remove());
+
+            const head = document.head;
+            const styleTag = document.createElement('style');
+            styleTag.appendChild(document.createTextNode(styleCss));
+            head.appendChild(styleTag);
+        }, all.css);
 
         const html = await page.content();
-
         // Close the page we opened here (not the browser).
         // await page.close();
         return {html, status: response.status()}
@@ -115,7 +139,7 @@ const app = express();
             const urlWithoutQuery = url.split("?").shift();
             const isLinkWithWithoutQuery = url.indexOf("?") === -1;
 
-            if ( isLinkWithWithoutQuery && result) {
+            if (isLinkWithWithoutQuery && result) {
                 return cb(null, result);
             }
             cluster.execute(urlWithoutQuery, render)
