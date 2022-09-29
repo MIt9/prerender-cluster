@@ -1,7 +1,6 @@
 const express = require('express');
 const compression = require('compression');
 const axios = require('axios');
-const dropcss = require('dropcss');
 const {Cluster} = require('puppeteer-cluster');
 const cacheManager = require('cache-manager');
 const memoryCache = cacheManager.caching({
@@ -10,7 +9,9 @@ const memoryCache = cacheManager.caching({
     ttl: +process.env.CACHE_TTL || 86400/*seconds*/
 });
 
-// Dont download all resources, we just need the HTML
+const app = express();
+
+// Don't download all resources, we just need the HTML
 // Also, this is huge performance/response time boost
 const blockedResourceTypes = [
     'css',
@@ -72,37 +73,33 @@ const render = async ({page, data: url}) => {
             // Add to top of head, before all other resources.
             document.head.prepend(base);
         }, url);
-
-        const mobHTML = await page.content();
+        //collect style links
         const styleHrefs = await page.$$eval('link[rel=stylesheet]', els => Array.from(els).map(s => s.href));
+
         let css = "";
         await Promise.all(styleHrefs.map(async href => {
             try {
                 let {data} = await axios.get(href);
                 css += data;
             } catch (e) {
-                console.log(href)
-                console.error(e)
+                console.log("error with => ", href)
             }
         }));
-        const all = dropcss({
-            css,
-            html: mobHTML
-        })
 
         await page.evaluate(async (styleCss) => {
+            // Remove stylesheet link
             const style = document.querySelectorAll('link[rel="stylesheet"]');
             // Remove scripts and html imports. They've already executed.
             const scripts = document.querySelectorAll('script:not([type="application/ld+json"]), link[rel="import"]');
             const iframes = document.querySelectorAll('iframe');
             const preload = document.querySelectorAll('link[rel="preload"]');
             [...scripts, ...iframes, ...style, ...preload].forEach(e => e.remove());
-
+            //inject all css in one style tag
             const head = document.head;
             const styleTag = document.createElement('style');
             styleTag.appendChild(document.createTextNode(styleCss));
             head.appendChild(styleTag);
-        }, all.css);
+        }, css);
 
         const html = await page.content();
         // Close the page we opened here (not the browser).
@@ -115,9 +112,6 @@ const render = async ({page, data: url}) => {
     }
 
 }
-
-
-const app = express();
 
 (async () => {
     const cluster = await Cluster.launch({
@@ -154,12 +148,12 @@ const app = express();
     // this will compress all responses
     app.use(compression())
 
-    app.use((req, res, next) => {
+    app.use((_req, res, next) => {
         res.header('Access-Control-Allow-Origin', '*');
         next();
     });
 
-    app.get('/test', (req, res) => {
+    app.get('/test', (_req, res) => {
         return res.status(200).send('test')
     });
 
