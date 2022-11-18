@@ -3,11 +3,17 @@ const compression = require('compression');
 const axios = require('axios');
 const {Cluster} = require('puppeteer-cluster');
 const cacheManager = require('cache-manager');
+const SitemapXMLParser = require('sitemap-xml-parser');
 const memoryCache = cacheManager.caching({
     store: 'memory',
     max: +process.env.CACHE_MAXSIZE || 1000,
     ttl: +process.env.CACHE_TTL || 86400/*seconds*/
 });
+
+const MAP_PARSER_OPTIONS = {
+    delay: 3000,
+    limit: 5
+};
 
 const app = express();
 
@@ -128,7 +134,7 @@ const render = async ({page, data: url}) => {
     const fetch = (url, cb) => {
         memoryCache.get(url, function (err, result) {
             if (err) {
-                return cb(null, err);
+                return cb(err);
             }
             const urlWithoutQuery = url.split("?").shift();
             const isLinkWithWithoutQuery = url.indexOf("?") === -1;
@@ -156,20 +162,48 @@ const render = async ({page, data: url}) => {
     app.get('/test', (_req, res) => {
         return res.status(200).send('test')
     });
+    app.get('/map-render', async (req, res) => {
+        const {url, version} = req.query;
 
+        if (!url) {
+            return res.status(400).send('Invalid url param: Example: ?url=https://example.com/sitemap.xml&version=3.0.0');
+        }
+        const sitemapXMLParser = new SitemapXMLParser(url, MAP_PARSER_OPTIONS);
+        const v = version || +(new Date());
+        sitemapXMLParser.fetch().then(result => {
+            res.status(200).send("The sitemap now in queue, number of urls to ad is " + result.length);
+            for (const {loc} of result) {
+                if (loc[0]) {
+                    fetch(loc[0] + "?v=" + v, (err) => {
+                        if (err) {
+                            console.log(`cluster cash FAILED with url ${loc[0]}`);
+                            console.error(err);
+                        } else {
+                            console.log(`cluster cash updated with url ${loc[0]}`);
+                        }
+                    })
+                }
+            }
+        })
+            .catch(err => {
+                res.status(500).send(err?.message);
+            });
+
+    })
     app.get('/render', async (req, res) => {
         const {url} = req.query;
 
         if (!url) {
-            return res.status(400).send('Invalid url param: Example: ?url=https:/silpo.ua');
+            return res.status(400).send('Invalid url param: Example: ?url=https://example.com');
         }
 
         console.time(`URL_START:${url}`)
-        fetch(url, (err, {html, status}) => {
+        fetch(url, (err, item) => {
             console.timeEnd(`URL_START:${url}`)
             if (err) {
                 res.status(500).send(err.message);
             } else {
+                const {html, status} = item;
                 res.status(status).send(html);
             }
         })

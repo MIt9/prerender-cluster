@@ -19,6 +19,11 @@ Prerender will now be running on http://localhost:3000. Try the container out wi
 ```
 curl http://localhost:3000/render?url=https://www.example.com/
 ```
+Precache pages using list from sitemap (version is optional):
+
+```
+curl http://localhost:3000/render?url=https://example.com/sitemap.xml&version=3.0.0
+```
 
 ## Prerender memory cache
 
