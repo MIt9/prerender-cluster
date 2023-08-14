@@ -61,7 +61,7 @@ const render = async ({page, data: url}) => {
 
         const response = await page.goto(url, {
             timeout: process.env.REQUEST_TIMEOUT || 25000,
-            waitUntil: 'networkidle2'
+            waitUntil: 'networkidle2',
         });
 
         // Inject <base> on page to relative resources load properly.
@@ -73,14 +73,14 @@ const render = async ({page, data: url}) => {
             // Remove scripts and html imports. They've already executed.
             const scripts = document.querySelectorAll('script:not([type="application/ld+json"]), link[rel="import"]');
             const iframes = document.querySelectorAll('iframe');
-            const style = document.querySelectorAll('link[rel="stylesheet"]');
             const preload = document.querySelectorAll('link[rel="preload"]');
-            console.log(style.length);
-            [...scripts, ...iframes, ...style, ...preload].forEach(e => e.remove());
+            [...scripts, ...iframes,  ...preload].forEach(e => e.remove());
         }, url);
 
-        const html = await page.content();
-
+        const html = await page.$eval('html', (element) => {
+            const inner = element.getInnerHTML({includeShadowRoots: true});
+            return "<!DOCTYPE html>\n <html xmlns=\"http://www.w3.org/1999/xhtml\" lang=\"uk\">" + inner + "</html>"
+        });
         await page.close();
         return {html, status: response.status()}
     } catch (e) {
@@ -101,7 +101,7 @@ const app = express();
             headless: true,
             ignoreHTTPSErrors: true,
             executablePath: process.env.CHROME_BIN || null,
-            args: ['--no-sandbox', '--headless', '--disable-gpu', '--disable-dev-shm-usage']
+            args: ['--no-sandbox', '--headless', '--disable-gpu', '--disable-dev-shm-usage', '--enable-blink-test-features', '--enable-experimental-web-platform-features',]
         },
         monitor: process.env.MONITOR === "1" || false,
         maxConcurrency: +process.env.MAX_CONCURRENCY || 4,
